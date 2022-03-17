@@ -7,7 +7,7 @@ from ampel.abstract.AbsProcessorTemplate import AbsProcessorTemplate
 from importlib import import_module
 from pydantic import ValidationError
 from contextlib import contextmanager
-import yaml
+import json
 
 JOB_TEMPLATE = {
     "name": "ampel-job",
@@ -16,6 +16,8 @@ JOB_TEMPLATE = {
             {"name": "task"},
             {"name": "name"},
             {"name": "url", "value": ""},
+            {"name": "channel", "value": ""},
+            {"name": "alias", "value": ""},
         ],
         "artifacts": [
             {
@@ -26,12 +28,12 @@ JOB_TEMPLATE = {
             {
                 "name": "channel",
                 "path": "/config/channel.yml",
-                "raw": {"data": "{{workflow.parameters.channel}}"},
+                "raw": {"data": "{{inputs.parameters.channel}}"},
             },
             {
                 "name": "alias",
                 "path": "/config/alias.yml",
-                "raw": {"data": "{{workflow.parameters.channel}}"},
+                "raw": {"data": "{{inputs.parameters.alias}}"},
             },
             {
                 "name": "alerts",
@@ -112,6 +114,7 @@ def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUni
         )
     )
 
+
 @contextmanager
 def job_context(ctx: AmpelContext, job: JobModel):
     """Add custom channels and aliases defined in the job"""
@@ -121,8 +124,8 @@ def job_context(ctx: AmpelContext, job: JobModel):
         config_dict = config._config
         for c in job.channel:
             dict.__setitem__(config_dict["channel"], str(c["channel"]), c)
-        
-        for k,v in job.alias.items():
+
+        for k, v in job.alias.items():
             if "alias" not in config_dict:
                 dict.__setitem__(config_dict, "alias", {})
             for kk, vv in v.items():
@@ -136,7 +139,9 @@ def job_context(ctx: AmpelContext, job: JobModel):
     finally:
         ctx.config = old_config
         ctx.loader.config = old_config
-    
+
+
+compact_json = json.JSONEncoder(separators=(",", ":")).encode
 
 
 def render_job(context: AmpelContext, job: JobModel):
@@ -168,11 +173,15 @@ def render_job(context: AmpelContext, job: JobModel):
             sub_step = {
                 "template": "ampel-job",
                 "arguments": {
-                    "parameters": {
-                        "task": yaml.dump(unit.dict(), sort_keys=False),
-                        "channel": yaml.dump(job.channel, sort_keys=False),
-                        "alias": yaml.dump(job.alias, sort_keys=False),
-                    }
+                    "parameters": [
+                        {"name": k, "value": compact_json(v)}
+                        for k, v in [
+                            ("task", unit.dict()),
+                            ("channel", job.channel),
+                            ("alias", job.alias),
+                        ]
+                    ]
+                    + [{"name": "name", "value": task.title}]
                 },
             }
 
@@ -187,6 +196,8 @@ def render_job(context: AmpelContext, job: JobModel):
             )
 
     return {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "WorkflowTemplate",
         "metadata": {
             "name": job.name,
             "namespace": "ampel",
@@ -210,7 +221,7 @@ def render_job(context: AmpelContext, job: JobModel):
                 "parameters": [
                     {"name": "url"},
                     {"name": "name"},
-                    {"name", "db"},
+                    {"name": "db"},
                 ]
             },
             "serviceAccountName": "argo-workflow",
@@ -218,7 +229,6 @@ def render_job(context: AmpelContext, job: JobModel):
             "ttlStrategy": {"secondsAfterCompletion": 1200},
             "podGC": {"strategy": "OnPodCompletion"},
             "workflowMetadata": {
-                "creationTimestamp": None,
                 "labels": {"example": "true"},
             },
         },
