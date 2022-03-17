@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "ampel-argo"
+version = "0.1.0"
+description = ""
+authors = ["Jakob van Santen <jvansanten@gmail.com>"]
+packages = [
+    {include = "ampel"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+ampel-core = "v0.8.2a11"
+fastapi = "^0.75.0"
+uvicorn = "^0.17.6"
+
+[tool.poetry.dev-dependencies]
+mypy = "^0.941"
+pytest = "^7.1.0"
+httpx = "^0.22.0"
+pytest-asyncio = "y"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

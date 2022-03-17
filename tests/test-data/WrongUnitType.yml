@@ -1,0 +1,4 @@
+name: WrongUnitType
+task:
+- title: foo
+  unit: DummyStockT2Unit

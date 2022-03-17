@@ -1,0 +1,35 @@
+name: TemplatedT3
+task:
+- title: t3
+  # much template, such compact
+  template: compact_t3
+  config:
+    execute:
+    - supply:
+        unit: T3DefaultBufferSuppliery
+        config:
+          select:
+            unit: T3StockSelector
+          load:
+            unit: T3SimpleDataLoader
+            config:
+              directives:
+              - col: stock
+              - col: t2
+      stage:
+        unit: T3ProjectingStager
+        config:
+          directives:
+          - project:
+              unit: T3ChannelProjector
+              config:
+                channel:
+                  any_of:
+                  - HU_PARTNER_10
+                  - HU_PARTNER_59
+                  - HU_TNS_PARTNER
+            execute:
+            - unit: DemoReviewT3Unit
+              config:
+                parameter: 42
+  

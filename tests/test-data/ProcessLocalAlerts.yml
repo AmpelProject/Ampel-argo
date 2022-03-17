@@ -1,0 +1,104 @@
+name: ProcessLocalAlerts
+mongo:
+  prefix: ampel-services
+channel:
+- name: DEMO_CHANNEL
+  version: 0
+  access: ["ZTF", "ZTF_PUB"]
+  policy: []
+alias:
+  t3:
+    '%TRANSIENT':
+      col: stock
+    '%T2RECORD':
+      col: t2
+task:
+# - title: t0
+#   unit: AlertConsumer
+#   config:
+#     supplier:
+#       unit: ZiAlertSupplier
+#       config:
+#         deserialize: avro
+#         loader:
+#           unit: DirAlertLoader
+#           config:
+#             folder: /opt/airflow/dags/repo
+#             extension: "schema_3.3.avro"
+#             binary_mode: true
+#     shaper:
+#       unit: ZiDataPointShaper
+#     compiler_opts:
+#       stock:
+#         id_mapper: ZTFIdMapper
+#         tag: ZTF
+#       t0:
+#         tag: ZTF
+#       t1:
+#         tag: ZTF
+#       state_t2:
+#         tag: ZTF
+#       point_t2:
+#         tag: ZTF
+#     directives:
+#     - channel: DEMO_CHANNEL
+#       ingest:
+#         combine:
+#         - unit: ZiT1Combiner
+#           state_t2:
+#           - unit: T2LightCurveSummary
+#   override:
+#     raise_exc: True
+- title: t2
+  unit: T2Worker
+  multiplier: 1
+  config: {}
+  override:
+    raise_exc: True
+- title: t3
+  unit: T3Processor
+  override:
+    raise_exc: True
+  config:
+    include:
+      session:
+      - unit: T3SessionAlertsNumber
+    execute:
+    - unit: T3ReviewUnitExecutor
+      config:
+        supply:
+          unit: T3DefaultBufferSupplier
+          config:
+            select:
+              unit: T3StockSelector
+              config:
+                updated:
+                  after:
+                    match_type: time_last_run
+                    process_name: demo
+                  before:
+                    match_type: time_delta
+                channel: DEMO_CHANNEL
+                tag:
+                  with: ZTF
+                  without: HAS_ERROR
+            load:
+              unit: T3SimpleDataLoader
+              config:
+                directives:
+                - TRANSIENT
+                - T2RECORD
+                channel: DEMO_CHANNEL
+        stage:
+          unit: T3ProjectingStager
+          config:
+            directives:
+            - project:
+                unit: T3ChannelProjector
+                config:
+                  channel: DEMO_CHANNEL
+              execute:
+              - unit: DemoReviewT3Unit
+                config:
+                  parameter: 42
+                override: null
