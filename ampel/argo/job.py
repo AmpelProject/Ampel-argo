@@ -63,6 +63,8 @@ JOB_TEMPLATE = {
             "{{workflow.parameters.db}}",
             "--schema",
             "/config/task.yml",
+            "--name",
+            "{{inputs.parameters.name}}",
         ],
         "env": [
             {
