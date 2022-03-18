@@ -233,5 +233,6 @@ def render_job(context: AmpelContext, job: JobModel):
             "workflowMetadata": {
                 "labels": {"example": "true"},
             },
+            "imagePullSecrets": [{"name": "desy-gitlab-registry"}]
         },
     }
