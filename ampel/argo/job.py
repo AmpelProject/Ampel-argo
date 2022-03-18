@@ -157,7 +157,7 @@ def render_job(context: AmpelContext, job: JobModel):
     steps = []
 
     with job_context(context, job) as ctx:
-        for task_def in job.task:
+        for num, task_def in enumerate(job.task):
 
             task = (
                 render_task_template(ctx, task_def)
@@ -170,13 +170,15 @@ def render_job(context: AmpelContext, job: JobModel):
             task.override["raise_exc"] = True
 
             with ctx.loader.validate_unit_models():
-                unit = UnitModel(**get_unit_model(task))
+                unit: UnitModel = UnitModel(**get_unit_model(task))
 
             if not "AbsEventUnit" in ctx.config._config["unit"][task.unit]["base"]:
                 raise ValidationError(
-                    [ValueError(f"{task.unit} is not a subclass of AbsEventUnit")],
+                    [[ValueError(f"{task.unit} is not a subclass of AbsEventUnit")]],
                     model=JobModel,
                 )
+
+            title = task.title or f"{job.name}-{num}"
 
             sub_step = {
                 "template": "ampel-job",
@@ -189,14 +191,14 @@ def render_job(context: AmpelContext, job: JobModel):
                             ("alias", job.alias),
                         ]
                     ]
-                    + [{"name": "name", "value": task.title}]
+                    + [{"name": "name", "value": title}]
                 },
             }
 
             steps.append(
                 [
                     {
-                        "name": task.title + (f"-{idx}" if task.multiplier else ""),
+                        "name": title + (f"-{idx}" if task.multiplier else ""),
                     }
                     | sub_step
                     for idx in range(task.multiplier)
