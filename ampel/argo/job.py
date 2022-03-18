@@ -9,84 +9,90 @@ from pydantic import ValidationError
 from contextlib import contextmanager
 import json
 
-JOB_TEMPLATE = {
-    "name": "ampel-job",
-    "inputs": {
-        "parameters": [
-            {"name": "task"},
-            {"name": "name"},
-            {"name": "url", "value": ""},
-            {"name": "channel", "value": ""},
-            {"name": "alias", "value": ""},
-        ],
-        "artifacts": [
-            {
-                "name": "task",
-                "path": "/config/task.yml",
-                "raw": {"data": "{{inputs.parameters.task}}"},
-            },
-            {
-                "name": "channel",
-                "path": "/config/channel.yml",
-                "raw": {"data": "{{inputs.parameters.channel}}"},
-            },
-            {
-                "name": "alias",
-                "path": "/config/alias.yml",
-                "raw": {"data": "{{inputs.parameters.alias}}"},
-            },
-            {
-                "name": "alerts",
-                "path": "/data/alerts.avro",
-                "http": {"url": "{{ inputs.parameters.url }}"},
-                "optional": True,
-            },
-        ],
-    },
-    "outputs": {},
-    "metadata": {},
-    "container": {
-        "name": "main",
-        "image": "gitlab.desy.de:5555/jakob.van.santen/docker-ampel:v0.8",
-        "command": [
-            "ampel",
-            "process",
-            "--config",
-            "/opt/env/etc/ampel.yml",
-            "--secrets",
-            "/config/secrets/secrets.yaml",
-            "--channel",
-            "/config/channel.yml",
-            "--alias",
-            "/config/alias.yml",
-            "--db",
-            "{{workflow.parameters.db}}",
-            "--schema",
-            "/config/task.yml",
-            "--name",
-            "{{inputs.parameters.name}}",
-        ],
-        "env": [
-            {
-                "name": "AMPEL_CONFIG_resource.mongo",
-                "valueFrom": {
-                    "secretKeyRef": {
-                        "name": "mongo-live-admin-superuser",
-                        "key": "connectionString.standard",
-                    }
+from .settings import settings
+
+
+def get_job_template(
+    image="gitlab.desy.de:5555/jakob.van.santen/docker-ampel:v0.8",
+) -> dict[str, Any]:
+    return {
+        "name": "ampel-job",
+        "inputs": {
+            "parameters": [
+                {"name": "task"},
+                {"name": "name"},
+                {"name": "url", "value": ""},
+                {"name": "channel", "value": ""},
+                {"name": "alias", "value": ""},
+            ],
+            "artifacts": [
+                {
+                    "name": "task",
+                    "path": "/config/task.yml",
+                    "raw": {"data": "{{inputs.parameters.task}}"},
                 },
-            }
-        ],
-        "resources": {},
-        "volumeMounts": [
-            {
-                "name": "secrets",
-                "readOnly": True,
-                "mountPath": "/config/secrets",
-            }
-        ],
-    },
-}
+                {
+                    "name": "channel",
+                    "path": "/config/channel.yml",
+                    "raw": {"data": "{{inputs.parameters.channel}}"},
+                },
+                {
+                    "name": "alias",
+                    "path": "/config/alias.yml",
+                    "raw": {"data": "{{inputs.parameters.alias}}"},
+                },
+                {
+                    "name": "alerts",
+                    "path": "/data/alerts.avro",
+                    "http": {"url": "{{ inputs.parameters.url }}"},
+                    "optional": True,
+                },
+            ],
+        },
+        "outputs": {},
+        "metadata": {},
+        "container": {
+            "name": "main",
+            "image": image,
+            "command": [
+                "ampel",
+                "process",
+                "--config",
+                "/opt/env/etc/ampel.yml",
+                "--secrets",
+                "/config/secrets/secrets.yaml",
+                "--channel",
+                "/config/channel.yml",
+                "--alias",
+                "/config/alias.yml",
+                "--db",
+                "{{workflow.parameters.db}}",
+                "--schema",
+                "/config/task.yml",
+                "--name",
+                "{{inputs.parameters.name}}",
+            ],
+            "env": [
+                {
+                    "name": "AMPEL_CONFIG_resource.mongo",
+                    "valueFrom": {
+                        "secretKeyRef": {
+                            "name": "mongo-live-admin-superuser",
+                            "key": "connectionString.standard",
+                        }
+                    },
+                }
+            ],
+            "resources": {},
+            "volumeMounts": [
+                {
+                    "name": "secrets",
+                    "readOnly": True,
+                    "mountPath": "/config/secrets",
+                }
+            ],
+        },
+    }
 
 
 def get_unit_model(task: TaskUnitModel) -> dict[str, Any]:
@@ -209,7 +215,7 @@ def render_job(context: AmpelContext, job: JobModel):
         },
         "spec": {
             "templates": [
-                JOB_TEMPLATE,
+                get_job_template(image=settings.ampel_image),
                 {
                     "name": "workflow",
                     "inputs": {},
@@ -227,12 +233,14 @@ def render_job(context: AmpelContext, job: JobModel):
                 ]
             },
             "serviceAccountName": "argo-workflow",
-            "volumes": [{"name": "secrets", "secret": {"secretName": "ampel-secrets"}}],
+            "volumes": [
+                {"name": "secrets", "secret": {"secretName": settings.ampel_secrets}}
+            ],
             "ttlStrategy": {"secondsAfterCompletion": 1200},
             "podGC": {"strategy": "OnPodCompletion"},
             "workflowMetadata": {
                 "labels": {"example": "true"},
             },
-            "imagePullSecrets": [{"name": "desy-gitlab-registry"}]
+            "imagePullSecrets": [{"name": n} for n in settings.image_pull_secrets],
         },
     }
