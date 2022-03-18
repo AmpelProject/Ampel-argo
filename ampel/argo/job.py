@@ -71,7 +71,7 @@ JOB_TEMPLATE = {
                 "name": "AMPEL_CONFIG_resource.mongo",
                 "valueFrom": {
                     "secretKeyRef": {
-                        "name": "mongo-live-admin-writer",
+                        "name": "mongo-live-admin-superuser",
                         "key": "connectionString.standard",
                     }
                 },
