@@ -9,11 +9,15 @@ from pydantic import ValidationError
 from contextlib import contextmanager
 import json
 
+from typing import Literal
+
 from .settings import settings
 
 
 def get_job_template(
     image="gitlab.desy.de:5555/jakob.van.santen/docker-ampel:v0.8",
+    channel: list[dict[str, Any]] = [],
+    alias: dict[Literal["t0", "t1", "t2", "t3"], Any] = {},
 ) -> dict[str, Any]:
     return {
         "name": "ampel-job",
@@ -22,8 +26,6 @@ def get_job_template(
                 {"name": "task"},
                 {"name": "name"},
                 {"name": "url", "value": ""},
-                {"name": "channel", "value": ""},
-                {"name": "alias", "value": ""},
             ],
             "artifacts": [
                 {
@@ -34,12 +36,12 @@ def get_job_template(
                 {
                     "name": "channel",
                     "path": "/config/channel.yml",
-                    "raw": {"data": "{{inputs.parameters.channel}}"},
+                    "raw": {"data": compact_json(channel)},
                 },
                 {
                     "name": "alias",
                     "path": "/config/alias.yml",
-                    "raw": {"data": "{{inputs.parameters.alias}}"},
+                    "raw": {"data": compact_json(alias)},
                 },
                 {
                     "name": "alerts",
@@ -184,14 +186,9 @@ def render_job(context: AmpelContext, job: JobModel):
                 "template": "ampel-job",
                 "arguments": {
                     "parameters": [
-                        {"name": k, "value": compact_json(v)}
-                        for k, v in [
-                            ("task", unit.dict()),
-                            ("channel", job.channel),
-                            ("alias", job.alias),
-                        ]
+                        {"name": "name", "value": title},
+                        {"name": "task", "value": compact_json(unit.dict())},
                     ]
-                    + [{"name": "name", "value": title}]
                 },
             }
 
@@ -217,7 +214,11 @@ def render_job(context: AmpelContext, job: JobModel):
         },
         "spec": {
             "templates": [
-                get_job_template(image=settings.ampel_image),
+                get_job_template(
+                    image=settings.ampel_image,
+                    channel=job.channel,
+                    alias=job.alias,
+                ),
                 {
                     "name": "workflow",
                     "inputs": {},
