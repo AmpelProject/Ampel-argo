@@ -1,14 +1,20 @@
 from ampel.core.AmpelContext import AmpelContext
-from fastapi import FastAPI, status
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import HTTPException
 from functools import cache
-from ampel.model.job.JobModel import JobModel
 from pydantic import ValidationError
 
 from .settings import settings
-from .job import render_job
+from .job import render_job, compact_json
+from .auth import get_user, User
+from .models import ArgoJobModel
+from . import api
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import httpx
 
 app = FastAPI(
     title="Argo job service",
@@ -26,7 +32,7 @@ def get_context():
 
 
 @app.post("/jobs/lint")
-async def lint_job(job: JobModel):
+async def lint_job(job: ArgoJobModel):
     try:
         return render_job(get_context(), job)
     except ValidationError as exc:
@@ -34,3 +40,36 @@ async def lint_job(job: JobModel):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=jsonable_encoder(exc.errors()),
         )
+
+
+@app.post("/jobs")
+async def submit_job(job: ArgoJobModel, user: User = Depends(get_user)):
+    try:
+        template = render_job(get_context(), job)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=jsonable_encoder(exc.errors()),
+        )
+    settings = api.KubernetesSettings.get()
+    async with api.api_client() as client:
+        response = await client.post(
+            f"api/v1/workflow-templates/{settings.namespace}",
+            json={
+                "template": {
+                    "metadata": {
+                        "name": job.name,
+                        "labels": {
+                            "ampelproject.github.io/creator": user.name,
+                        },
+                        "annotations": {
+                            "ampelproject.github.io/job": compact_json(job.json()),
+                        },
+                    },
+                    **template,
+                }
+            },
+        )
+    if response.status_code >= status.HTTP_400_BAD_REQUEST:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+    return response.json()

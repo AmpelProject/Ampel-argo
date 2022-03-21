@@ -1,4 +1,4 @@
-name: WrongUnitType
+name: wrong-unit-type
 task:
 - title: foo
   unit: DummyStockT2Unit

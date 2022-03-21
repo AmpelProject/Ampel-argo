@@ -155,6 +155,7 @@ compact_json = json.JSONEncoder(separators=(",", ":")).encode
 
 
 def render_job(context: AmpelContext, job: JobModel):
+    """Render Ampel job into an Argo workflow template spec"""
 
     steps = []
 
@@ -203,15 +204,6 @@ def render_job(context: AmpelContext, job: JobModel):
             )
 
     return {
-        "apiVersion": "argoproj.io/v1alpha1",
-        "kind": "WorkflowTemplate",
-        "metadata": {
-            "name": job.name,
-            "namespace": "ampel",
-            "labels": {
-                "example": "true",
-            },
-        },
         "spec": {
             "templates": [
                 get_job_template(

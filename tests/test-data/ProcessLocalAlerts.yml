@@ -1,4 +1,4 @@
-name: ProcessLocalAlerts
+name: process-local-alerts
 mongo:
   prefix: ampel-services
 channel:

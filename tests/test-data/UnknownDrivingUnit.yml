@@ -1,4 +1,4 @@
-name: UnknownDrivingUnit
+name: unknown-driving-unit
 task:
 - title: foo
   unit: NotAUnit
