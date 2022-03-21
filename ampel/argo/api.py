@@ -11,17 +11,20 @@ from typing import AsyncIterator
 class KubernetesSettings(BaseSettings):
     serviceaccount: str = Field(..., env="SERVICE_ACCOUNT_TOKEN")
     base_url: str = Field(..., env="ARGO_BASE_URL")
-    namespace: str = "ampel"
+    namespace: str = Field("ampel", env="ARGO_NAMESPACE")
 
     verify_ssl: bool = Field(True, env="VERIFY_SSL")
-
-    class Config:
-        secrets_dir = "/var/run/secrets/kubernetes.io"
 
     @classmethod
     @cache
     def get(cls) -> "KubernetesSettings":
-        return cls()
+        kwargs = {}
+        try:
+            with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as f:
+                kwargs["serviceaccount"] = f.read()
+        except FileNotFoundError:
+            pass
+        return cls(**kwargs)
 
 
 @asynccontextmanager
