@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ampel-argo"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.1"
 description = ""
 authors = ["Jakob van Santen <jvansanten@gmail.com>"]
 packages = [
@@ -9,14 +9,15 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.9"
-ampel-core = "v0.8.2a11"
+ampel-core = ">=0.8.2-alpha.13,<0.8.3"
 fastapi = "^0.75.0"
 uvicorn = "^0.17.6"
+httpx = "^0.22.0"
+PyJWT = "^2.3.0"
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.941"
 pytest = "^7.1.0"
-httpx = "^0.22.0"
 pytest-asyncio = "y"
 
 [build-system]
