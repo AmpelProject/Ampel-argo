@@ -4,6 +4,9 @@ from ampel.model.UnitModel import UnitModel
 from ampel.model.job.JobModel import JobModel, TaskUnitModel, TemplateUnitModel
 from ampel.core.AmpelContext import AmpelContext
 from ampel.abstract.AbsProcessorTemplate import AbsProcessorTemplate
+# avoid a circular import in UnitLoader._validate_unit_model
+from ampel.abstract.AbsProcessController import AbsProcessController
+
 from importlib import import_module
 from pydantic import ValidationError
 from contextlib import contextmanager

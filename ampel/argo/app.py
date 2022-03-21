@@ -33,6 +33,9 @@ def get_context():
 
 @app.post("/jobs/lint")
 async def lint_job(job: ArgoJobModel):
+    """
+    Check a job template for errors
+    """
     try:
         return render_job(get_context(), job)
     except ValidationError as exc:
@@ -44,6 +47,9 @@ async def lint_job(job: ArgoJobModel):
 
 @app.post("/jobs")
 async def submit_job(job: ArgoJobModel, user: User = Depends(get_user)):
+    """
+    Submit a job template
+    """
     try:
         template = render_job(get_context(), job)
     except ValidationError as exc:
