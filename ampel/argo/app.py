@@ -73,3 +73,11 @@ async def submit_job(job: ArgoJobModel, user: User = Depends(get_user)):
     if response.status_code >= status.HTTP_400_BAD_REQUEST:
         raise HTTPException(status_code=response.status_code, detail=response.json())
     return response.json()
+
+# If we are mounted under a (non-stripped) prefix path, create a potemkin root
+# router and mount the actual root as a sub-application. This has no effect
+# other than to prefix the paths of all routes with the root path.
+if settings.root_path:
+    wrapper = FastAPI()
+    wrapper.mount(settings.root_path, app)
+    app = wrapper
