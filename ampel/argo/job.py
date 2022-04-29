@@ -16,6 +16,19 @@ from typing import Literal
 
 from .settings import settings
 
+# things that might be settable
+# job template: will use ampel-job
+# - image
+# - channel
+# - alias
+# - extra parameters (also appears in step definition)
+# - extra artifacts
+# - env vars
+# - secret mounts
+# spec:
+# - extra parameters (that may also appear in job template)
+# - volumes (for secrets)
+# - image pull secrets
 
 def get_job_template(
     image="gitlab.desy.de:5555/jakob.van.santen/docker-ampel:v0.8",
@@ -77,17 +90,7 @@ def get_job_template(
                 "--name",
                 "{{inputs.parameters.name}}",
             ],
-            "env": [
-                {
-                    "name": "AMPEL_CONFIG_resource.mongo",
-                    "valueFrom": {
-                        "secretKeyRef": {
-                            "name": "mongo-live-admin-superuser",
-                            "key": "connectionString.standard",
-                        }
-                    },
-                }
-            ],
+            "env": settings.job_env,
             "resources": {},
             "volumeMounts": [
                 {
