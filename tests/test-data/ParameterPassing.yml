@@ -1,0 +1,19 @@
+name: job
+parameters:
+- name: expected_value
+  value: xxx
+task:
+- unit: DummyOutputUnit
+  config:
+    path: test-token
+    value: xxx
+  outputs:
+    parameters:
+    - name: token
+      value_from:
+        path: test-token
+- unit: DummyInputUnit
+  config:
+    expected_value: '{{ job.parameters.expected_value }}'
+    value: '{{ task.DummyOutputUnit.outputs.parameters.token }}'
+  

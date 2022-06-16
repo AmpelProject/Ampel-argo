@@ -1,0 +1,13 @@
+*.egg-info
+*.swp
+*.swo
+*.swn
+__pycache__
+.pytest_cache
+.DS_Store
+.mypy_cache
+dist/
+build
+public
+.vscode/
+venv/

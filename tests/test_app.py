@@ -60,7 +60,9 @@ async def clear_templates(mock_serviceaccount):
 
 @pytest.mark.asyncio
 async def test_lint(mock_client: httpx.AsyncClient, job: ArgoJobModel):
-    response = await mock_client.post("/jobs/lint", json=job.dict())
+    response = await mock_client.post(
+        "/jobs/lint", data=job.json(), headers={"Content-Type": "application/json"}
+    )
     assert response.json()
     assert response.status_code == status.HTTP_200_OK
 

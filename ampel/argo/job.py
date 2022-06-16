@@ -1,18 +1,29 @@
-from typing import Any
+import ast
+from typing import Any, Callable
 from ampel.config.AmpelConfig import AmpelConfig
 from ampel.model.UnitModel import UnitModel
-from ampel.model.job.JobModel import JobModel, TaskUnitModel, TemplateUnitModel
+from ampel.model.job.JobModel import (
+    InputArtifact,
+    InputParameter,
+    JobModel,
+    TaskUnitModel,
+    TemplateUnitModel,
+    OutputParameter,
+    InputArtifactHttpSource,
+)
 from ampel.core.AmpelContext import AmpelContext
 from ampel.abstract.AbsProcessorTemplate import AbsProcessorTemplate
+
 # avoid a circular import in UnitLoader._validate_unit_model
 from ampel.abstract.AbsProcessController import AbsProcessController
 
 from importlib import import_module
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from contextlib import contextmanager
+from functools import singledispatch, partial
 import json
 
-from typing import Literal
+from typing import Literal, Union
 
 from .settings import settings
 
@@ -30,19 +41,52 @@ from .settings import settings
 # - volumes (for secrets)
 # - image pull secrets
 
+
+@singledispatch
+def to_argo(model) -> dict:
+    return model.dict()
+
+
+@to_argo.register
+def _(model: list) -> dict:
+    return [to_argo(element) for element in model]
+
+
+@to_argo.register
+def _(model: OutputParameter) -> dict:
+    return {
+        "name": model.name,
+        "valueFrom": {
+            "path": str(model.value_from.path),
+            "default": model.value_from.default,
+        },
+    }
+
+
+@to_argo.register
+def _(model: InputArtifact) -> dict:
+    return {
+        "name": model.name,
+        "path": str(model.path),
+        "http": {"url": str(model.http.url)},
+    }
+
+
 def get_job_template(
+    name,
+    task: Union[TaskUnitModel, TemplateUnitModel],
     image="gitlab.desy.de:5555/jakob.van.santen/docker-ampel:v0.8",
     channel: list[dict[str, Any]] = [],
     alias: dict[Literal["t0", "t1", "t2", "t3"], Any] = {},
 ) -> dict[str, Any]:
     return {
-        "name": "ampel-job",
+        "name": name,
         "inputs": {
             "parameters": [
                 {"name": "task"},
                 {"name": "name"},
-                {"name": "url", "value": ""},
-            ],
+            ]
+            + to_argo(task.inputs.parameters),
             "artifacts": [
                 {
                     "name": "task",
@@ -59,15 +103,10 @@ def get_job_template(
                     "path": "/config/alias.yml",
                     "raw": {"data": compact_json(alias)},
                 },
-                {
-                    "name": "alerts",
-                    "path": "/data/alerts.avro",
-                    "http": {"url": "{{ inputs.parameters.url }}"},
-                    "optional": True,
-                },
-            ],
+            ]
+            + to_argo(task.inputs.artifacts),
         },
-        "outputs": {},
+        "outputs": {"parameters": to_argo(task.outputs.parameters)},
         "metadata": {},
         "container": {
             "name": "main",
@@ -105,7 +144,39 @@ def get_job_template(
 
 def get_unit_model(task: TaskUnitModel) -> dict[str, Any]:
     """get dict representation of UnitModel from TaskUnitModel"""
-    return task.dict(exclude={"title", "multiplier"})
+    return task.dict(exclude={"title", "multiplier", "inputs", "outputs"})
+
+
+class ExpressionTransformer(ast.NodeVisitor):
+    """Translate top-level names"""
+
+    def __init__(self, name_mapping: dict[str, str]):
+        self._name_mapping = name_mapping
+        self._output = ""
+
+    def visit_Name(self, node: ast.Name):
+        super().generic_visit(node)
+        self._output += self._name_mapping.get(node.id, node.id)
+
+    def visit_Attribute(self, node: ast.Attribute):
+        super().generic_visit(node)
+        self._output += "." + node.attr
+
+    @classmethod
+    def transform(cls, expression: str, name_mapping: dict[str, str]):
+        self = cls(name_mapping)
+        self.visit(ast.parse(expression, mode="eval"))
+        return self._output
+
+
+def translate_expression(expression: str) -> str:
+    return (
+        "{{ "
+        + ExpressionTransformer.transform(
+            expression, name_mapping={"job": "workflow", "task": "steps"}
+        )
+        + " }}"
+    )
 
 
 def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUnitModel:
@@ -126,7 +197,11 @@ def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUni
     return TaskUnitModel(
         **(
             tpl.get_model(ctx.config._config, model.dict()).dict()
-            | {"title": model.title, "multiplier": model.multiplier}
+            | {
+                "title": model.title,
+                "multiplier": model.multiplier,
+                "outputs": model.outputs,
+            }
         )
     )
 
@@ -164,6 +239,7 @@ def render_job(context: AmpelContext, job: JobModel):
     """Render Ampel job into an Argo workflow template spec"""
 
     steps = []
+    templates = []
 
     with job_context(context, job) as ctx:
         for num, task_def in enumerate(job.task):
@@ -187,14 +263,32 @@ def render_job(context: AmpelContext, job: JobModel):
                     model=JobModel,
                 )
 
-            title = task.title or f"{job.name}-{num}"
+            title = task.title  # or f"{job.name}-{num}"
+
+            templates.append(
+                get_job_template(
+                    title,
+                    task,
+                    image=settings.ampel_image,
+                    channel=job.channel,
+                    alias=job.alias,
+                )
+            )
 
             sub_step = {
-                "template": "ampel-job",
+                "template": title,
                 "arguments": {
                     "parameters": [
                         {"name": "name", "value": title},
-                        {"name": "task", "value": compact_json(unit.dict())},
+                        {
+                            "name": "task",
+                            "value": compact_json(
+                                job.transform_expressions(
+                                    unit.dict(),
+                                    translate_expression,
+                                )
+                            ),
+                        },
                     ]
                 },
             }
@@ -202,7 +296,7 @@ def render_job(context: AmpelContext, job: JobModel):
             steps.append(
                 [
                     {
-                        "name": title + (f"-{idx}" if task.multiplier else ""),
+                        "name": title + (f"-{idx}" if idx else ""),
                     }
                     | sub_step
                     for idx in range(task.multiplier)
@@ -211,12 +305,8 @@ def render_job(context: AmpelContext, job: JobModel):
 
     return {
         "spec": {
-            "templates": [
-                get_job_template(
-                    image=settings.ampel_image,
-                    channel=job.channel,
-                    alias=job.alias,
-                ),
+            "templates": templates
+            + [
                 {
                     "name": "workflow",
                     "inputs": {},
@@ -228,12 +318,12 @@ def render_job(context: AmpelContext, job: JobModel):
             "entrypoint": "workflow",
             "arguments": {
                 "parameters": [
-                    {"name": "url"},
                     {"name": "name"},
                     {"name": "db"},
                 ]
+                + [p.dict() for p in job.parameters]
             },
-            "serviceAccountName": "argo-workflow",
+            "serviceAccountName": settings.service_account,
             "volumes": [
                 {"name": "secrets", "secret": {"secretName": settings.ampel_secrets}}
             ],
@@ -245,3 +335,27 @@ def render_job(context: AmpelContext, job: JobModel):
             "imagePullSecrets": [{"name": n} for n in settings.image_pull_secrets],
         },
     }
+
+
+def entrypoint():
+    from argparse import ArgumentParser, FileType
+    from ampel.core.AmpelContext import AmpelContext
+    from .models import ArgoJobModel
+    import yaml
+
+    parser = ArgumentParser()
+    parser.add_argument("--config", default="ampel.yaml")
+    parser.add_argument("job", type=FileType("r"))
+
+    args = parser.parse_args()
+    ctx = AmpelContext.load(args.config)
+
+    model = ArgoJobModel(**yaml.safe_load(args.job))
+
+    resource = {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "WorkflowTemplate",
+        "metadata": {"name": model.name},
+    } | render_job(ctx, model)
+
+    print(yaml.dump(resource, sort_keys=False))

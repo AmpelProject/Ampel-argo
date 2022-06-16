@@ -21,7 +21,7 @@ def mock_context(test_data: pathlib.Path):
         vault=AmpelVault([PotemkinSecretProvider()]),
     )
 
-@pytest.fixture(params=["ProcessLocalAlerts.yml", "TemplatedT3.yml"])
+@pytest.fixture(params=["ProcessLocalAlerts.yml", "TemplatedT3.yml", "ParameterPassing.yml", "InputArtifacts.yml"])
 def job(request, test_data: pathlib.Path):
     with (test_data / request.param).open() as f:
         return JobModel(**yaml.safe_load(f))

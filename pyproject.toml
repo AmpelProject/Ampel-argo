@@ -1,11 +1,14 @@
 [tool.poetry]
 name = "ampel-argo"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 description = ""
 authors = ["Jakob van Santen <jvansanten@gmail.com>"]
 packages = [
     {include = "ampel"}
 ]
+
+[tool.poetry.scripts]
+ampel-argo-render = 'ampel.argo.job:entrypoint'
 
 [tool.poetry.dependencies]
 python = "^3.9"

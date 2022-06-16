@@ -1,0 +1,18 @@
+name: input-artifacts
+parameters:
+- name: expected_value
+  value: flerpyherp
+task:
+- unit: DummyInputUnit
+  config:
+    value: '{{ inputs.parameters.token }}'
+    expected_value: '{{ job.parameters.expected_value }}'
+  inputs:
+    parameters:
+    - name: token
+      value: '{{ inputs.artifacts.token }}'
+    artifacts:
+    - name: token
+      path: token
+      http:
+        url: http://httpbin.org/base64/ZmxlcnB5aGVycA==
