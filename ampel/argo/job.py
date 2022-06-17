@@ -42,9 +42,41 @@ from .settings import settings
 # - image pull secrets
 
 
+class ExpressionTransformer(ast.NodeVisitor):
+    """Translate top-level names"""
+
+    def __init__(self, name_mapping: dict[str, str]):
+        self._name_mapping = name_mapping
+        self._output = ""
+
+    def visit_Name(self, node: ast.Name):
+        super().generic_visit(node)
+        self._output += self._name_mapping.get(node.id, node.id)
+
+    def visit_Attribute(self, node: ast.Attribute):
+        super().generic_visit(node)
+        self._output += "." + node.attr
+
+    @classmethod
+    def transform(cls, expression: str, name_mapping: dict[str, str]):
+        self = cls(name_mapping)
+        self.visit(ast.parse(expression, mode="eval"))
+        return self._output
+
+
+def translate_expression(expression: str) -> str:
+    return (
+        "{{ "
+        + ExpressionTransformer.transform(
+            expression, name_mapping={"job": "workflow", "task": "steps"}
+        )
+        + " }}"
+    )
+
+
 @singledispatch
 def to_argo(model) -> dict:
-    return model.dict()
+    return JobModel.transform_expressions(model.dict(), translate_expression)
 
 
 @to_argo.register
@@ -54,33 +86,38 @@ def _(model: list) -> dict:
 
 @to_argo.register
 def _(model: OutputParameter) -> dict:
-    return {
-        "name": model.name,
-        "valueFrom": {
-            "path": str(model.value_from.path),
-            "default": model.value_from.default,
+    return JobModel.transform_expressions(
+        {
+            "name": model.name,
+            "valueFrom": {
+                "path": str(model.value_from.path),
+                "default": model.value_from.default,
+            },
         },
-    }
+        translate_expression,
+    )
 
 
 @to_argo.register
 def _(model: InputArtifact) -> dict:
-    return {
-        "name": model.name,
-        "path": str(model.path),
-        "http": {"url": str(model.http.url)},
-    }
+    return JobModel.transform_expressions(
+        (
+            model.dict()
+            | {
+                "path": str(model.path),
+            }
+        ),
+        translate_expression,
+    )
 
 
-def get_job_template(
-    name,
+def get_template_for_task(
+    job: JobModel,
     task: Union[TaskUnitModel, TemplateUnitModel],
     image="gitlab.desy.de:5555/jakob.van.santen/docker-ampel:v0.8",
-    channel: list[dict[str, Any]] = [],
-    alias: dict[Literal["t0", "t1", "t2", "t3"], Any] = {},
 ) -> dict[str, Any]:
     return {
-        "name": name,
+        "name": task.title,
         "inputs": {
             "parameters": [
                 {"name": "task"},
@@ -96,12 +133,12 @@ def get_job_template(
                 {
                     "name": "channel",
                     "path": "/config/channel.yml",
-                    "raw": {"data": compact_json(channel)},
+                    "raw": {"data": compact_json(job.channel)},
                 },
                 {
                     "name": "alias",
                     "path": "/config/alias.yml",
-                    "raw": {"data": compact_json(alias)},
+                    "raw": {"data": compact_json(job.alias)},
                 },
             ]
             + to_argo(task.inputs.artifacts),
@@ -147,38 +184,6 @@ def get_unit_model(task: TaskUnitModel) -> dict[str, Any]:
     return task.dict(exclude={"title", "multiplier", "inputs", "outputs"})
 
 
-class ExpressionTransformer(ast.NodeVisitor):
-    """Translate top-level names"""
-
-    def __init__(self, name_mapping: dict[str, str]):
-        self._name_mapping = name_mapping
-        self._output = ""
-
-    def visit_Name(self, node: ast.Name):
-        super().generic_visit(node)
-        self._output += self._name_mapping.get(node.id, node.id)
-
-    def visit_Attribute(self, node: ast.Attribute):
-        super().generic_visit(node)
-        self._output += "." + node.attr
-
-    @classmethod
-    def transform(cls, expression: str, name_mapping: dict[str, str]):
-        self = cls(name_mapping)
-        self.visit(ast.parse(expression, mode="eval"))
-        return self._output
-
-
-def translate_expression(expression: str) -> str:
-    return (
-        "{{ "
-        + ExpressionTransformer.transform(
-            expression, name_mapping={"job": "workflow", "task": "steps"}
-        )
-        + " }}"
-    )
-
-
 def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUnitModel:
     """
     Resolve and validate a full AbsEventUnit config from given template
@@ -200,7 +205,6 @@ def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUni
             | {
                 "title": model.title,
                 "multiplier": model.multiplier,
-                "outputs": model.outputs,
             }
         )
     )
@@ -263,23 +267,19 @@ def render_job(context: AmpelContext, job: JobModel):
                     model=JobModel,
                 )
 
-            title = task.title  # or f"{job.name}-{num}"
-
             templates.append(
-                get_job_template(
-                    title,
+                get_template_for_task(
+                    job,
                     task,
                     image=settings.ampel_image,
-                    channel=job.channel,
-                    alias=job.alias,
                 )
             )
 
             sub_step = {
-                "template": title,
+                "template": task.title,
                 "arguments": {
                     "parameters": [
-                        {"name": "name", "value": title},
+                        {"name": "name", "value": task.title},
                         {
                             "name": "task",
                             "value": compact_json(
@@ -296,7 +296,7 @@ def render_job(context: AmpelContext, job: JobModel):
             steps.append(
                 [
                     {
-                        "name": title + (f"-{idx}" if idx else ""),
+                        "name": task.title + (f"-{idx}" if idx else ""),
                     }
                     | sub_step
                     for idx in range(task.multiplier)

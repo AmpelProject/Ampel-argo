@@ -2,6 +2,8 @@ name: input-artifacts
 parameters:
 - name: expected_value
   value: flerpyherp
+- name: url
+  value: http://httpbin.org/base64/ZmxlcnB5aGVycA==
 task:
 - unit: DummyInputUnit
   config:
@@ -15,4 +17,6 @@ task:
     - name: token
       path: token
       http:
-        url: http://httpbin.org/base64/ZmxlcnB5aGVycA==
+        # take value from expression to ensure that parameters are interpolated
+        # at validation time
+        url: '{{ job.parameters.url }}'

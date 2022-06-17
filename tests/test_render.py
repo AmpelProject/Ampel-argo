@@ -2,6 +2,7 @@ import pytest
 import yaml
 import pathlib
 import subprocess
+import re
 
 from ampel.model.job.JobModel import JobModel
 from ampel.dev.DevAmpelContext import DevAmpelContext
@@ -32,6 +33,8 @@ def test_rendered_job_is_valid(job: JobModel, mock_context: DevAmpelContext):
         | render_job(mock_context, job),
         sort_keys=False,
     )
+    assert not re.search(r"\{\{\s?job\.", manifest), "job expression was translated"
+    assert not re.search(r"\{\{\s?task\.", manifest), "task expression was translated"
     try:
         subprocess.run(
             ["argo", "template", "lint", "-"], input=manifest.encode(), check=True
@@ -59,7 +62,9 @@ def test_transform_expressions():
     from ampel.argo.job import ExpressionTransformer, translate_expression
 
     assert (
-        ExpressionTransformer.transform("job.parameters.job", name_mapping={"job": "workflow"})
+        ExpressionTransformer.transform(
+            "job.parameters.job", name_mapping={"job": "workflow"}
+        )
         == "workflow.parameters.job"
     )
 
