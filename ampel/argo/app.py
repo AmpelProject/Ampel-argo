@@ -32,7 +32,7 @@ def get_context():
 
 
 @app.post("/jobs/lint")
-async def lint_job(job: ArgoJobModel):
+def lint_job(job: ArgoJobModel) -> dict:
     """
     Check a job template for errors
     """
@@ -45,40 +45,58 @@ async def lint_job(job: ArgoJobModel):
         )
 
 
+def render_template(
+    job: ArgoJobModel,
+    template: dict = Depends(lint_job),
+    user: User = Depends(get_user),
+) -> dict:
+    return {
+        "template": {
+            "metadata": {
+                "name": job.name,
+                "labels": {
+                    "ampelproject.github.io/creator": user.name,
+                },
+                "annotations": {
+                    "ampelproject.github.io/job": compact_json(job.json()),
+                },
+            },
+            **template,
+        }
+    }
+
+
 @app.post("/jobs")
-async def submit_job(job: ArgoJobModel, user: User = Depends(get_user)):
+async def submit_job(template: dict = Depends(render_template)):
     """
     Submit a job template
     """
-    try:
-        template = render_job(get_context(), job)
-    except ValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=jsonable_encoder(exc.errors()),
-        )
     settings = api.KubernetesSettings.get()
     async with api.api_client() as client:
         response = await client.post(
             f"api/v1/workflow-templates/{settings.namespace}",
-            json={
-                "template": {
-                    "metadata": {
-                        "name": job.name,
-                        "labels": {
-                            "ampelproject.github.io/creator": user.name,
-                        },
-                        "annotations": {
-                            "ampelproject.github.io/job": compact_json(job.json()),
-                        },
-                    },
-                    **template,
-                }
-            },
+            json=template,
         )
     if response.status_code >= status.HTTP_400_BAD_REQUEST:
         raise HTTPException(status_code=response.status_code, detail=response.json())
     return response.json()
+
+
+@app.put("/jobs/{name}")
+async def update_job(name: str, template: dict = Depends(render_template)):
+    """
+    Update an existing job template
+    """
+    settings = api.KubernetesSettings.get()
+    async with api.api_client() as client:
+        response = await client.put(
+            f"api/v1/workflow-templates/{settings.namespace}/{name}",
+            json=template,
+        )
+    if response.status_code >= status.HTTP_400_BAD_REQUEST:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+    return response.json()
+
 
 # If we are mounted under a (non-stripped) prefix path, create a potemkin root
 # router and mount the actual root as a sub-application. This has no effect
