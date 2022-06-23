@@ -82,6 +82,21 @@ async def submit_job(template: dict = Depends(render_template)):
     return response.json()
 
 
+@app.delete("/jobs/{name}")
+async def delete_job(name: str, user: User = Depends(get_user)):
+    """
+    Delete an existing job template
+    """
+    settings = api.KubernetesSettings.get()
+    async with api.api_client() as client:
+        response = await client.delete(
+            f"api/v1/workflow-templates/{settings.namespace}/{name}",
+        )
+    if response.status_code >= status.HTTP_400_BAD_REQUEST:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+    return response.json()
+
+
 @app.put("/jobs/{name}")
 async def update_job(name: str, template: dict = Depends(render_template)):
     """
