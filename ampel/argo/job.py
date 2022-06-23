@@ -318,8 +318,8 @@ def render_job(context: AmpelContext, job: JobModel):
             "entrypoint": "workflow",
             "arguments": {
                 "parameters": [
-                    {"name": "name"},
-                    {"name": "db"},
+                    {"name": "name", "value": job.name},
+                    {"name": "db", "value": job.name},
                 ]
                 + [p.dict() for p in job.parameters]
             },
