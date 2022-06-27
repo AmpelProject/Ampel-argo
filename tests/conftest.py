@@ -8,6 +8,7 @@ from ampel.dev.DevAmpelContext import DevAmpelContext
 from ampel.secret.AmpelVault import AmpelVault
 from ampel.secret.PotemkinSecretProvider import PotemkinSecretProvider
 
+
 @pytest.fixture(scope="session")
 def test_data():
     return pathlib.Path(__file__).parent / "test-data"
@@ -21,10 +22,20 @@ def mock_context(test_data: pathlib.Path):
         vault=AmpelVault([PotemkinSecretProvider()]),
     )
 
-@pytest.fixture(params=["ProcessLocalAlerts.yml", "TemplatedT3.yml", "ParameterPassing.yml", "InputArtifacts.yml"])
+
+@pytest.fixture(
+    params=[
+        "ProcessLocalAlerts.yml",
+        "TemplatedT3.yml",
+        "ParameterPassing.yml",
+        "InputArtifacts.yml",
+        "ExpandedTasks.yml",
+    ]
+)
 def job(request, test_data: pathlib.Path):
     with (test_data / request.param).open() as f:
         return JobModel(**yaml.safe_load(f))
+
 
 @pytest.fixture(
     params=["UnknownUnit.yml", "UnknownDrivingUnit.yml", "WrongUnitType.yml"]

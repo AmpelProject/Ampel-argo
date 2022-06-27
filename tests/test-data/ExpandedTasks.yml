@@ -1,0 +1,26 @@
+name: job
+parameters:
+- name: expected_value
+  value: xxx
+task:
+- title: dummy1
+  unit: DummyOutputUnit
+  config:
+    path: foo
+    value: "{{ item }}"
+  expand_with:
+    sequence:
+      count: 3
+- title: dummy2
+  unit: DummyOutputUnit
+  config:
+    path: "{{ item.path }}"
+    value: "{{ item.value }}"
+  expand_with:
+    items:
+    - path: foo
+      value: bar
+    - path: baz
+      value: bim
+
+  

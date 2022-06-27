@@ -10,6 +10,8 @@ from ampel.model.job.JobModel import (
     TemplateUnitModel,
     OutputParameter,
     InputArtifactHttpSource,
+    ExpandWithItems,
+    ExpandWithSequence,
 )
 from ampel.core.AmpelContext import AmpelContext
 from ampel.abstract.AbsProcessorTemplate import AbsProcessorTemplate
@@ -99,6 +101,16 @@ def _(model: OutputParameter) -> dict:
 
 
 @to_argo.register
+def _(model: ExpandWithItems):
+    return {"withItems": model.items}
+
+
+@to_argo.register
+def _(model: ExpandWithSequence):
+    return {"withSequence": model.sequence.dict()}
+
+
+@to_argo.register
 def _(model: InputArtifact) -> dict:
     return JobModel.transform_expressions(
         (
@@ -181,7 +193,7 @@ def get_template_for_task(
 
 def get_unit_model(task: TaskUnitModel) -> dict[str, Any]:
     """get dict representation of UnitModel from TaskUnitModel"""
-    return task.dict(exclude={"title", "multiplier", "inputs", "outputs"})
+    return task.dict(exclude={"title", "expand_with", "inputs", "outputs"})
 
 
 def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUnitModel:
@@ -204,7 +216,7 @@ def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUni
             tpl.get_model(ctx.config._config, model.dict()).dict()
             | {
                 "title": model.title,
-                "multiplier": model.multiplier,
+                "expand_with": model.expand_with,
             }
         )
     )
@@ -276,6 +288,7 @@ def render_job(context: AmpelContext, job: JobModel):
             )
 
             sub_step = {
+                "name": task.title,
                 "template": task.title,
                 "arguments": {
                     "parameters": [
@@ -292,16 +305,10 @@ def render_job(context: AmpelContext, job: JobModel):
                     ]
                 },
             }
+            if task.expand_with:
+                sub_step |= to_argo(task.expand_with)
 
-            steps.append(
-                [
-                    {
-                        "name": task.title + (f"-{idx}" if idx else ""),
-                    }
-                    | sub_step
-                    for idx in range(task.multiplier)
-                ]
-            )
+            steps.append([sub_step])
 
     return {
         "spec": {

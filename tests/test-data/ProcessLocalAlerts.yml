@@ -51,7 +51,6 @@ task:
 #     raise_exc: True
 - title: t2
   unit: T2Worker
-  multiplier: 1
   config: {}
   override:
     raise_exc: True

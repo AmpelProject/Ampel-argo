@@ -18,7 +18,7 @@ def test_render(job: JobModel, mock_context: DevAmpelContext):
     assert (entrypoint := workflow["spec"]["templates"][-1])["name"] == "workflow"
     assert len(entrypoint["steps"]) == len(job.task)
     for step, task in zip(entrypoint["steps"], job.task):
-        assert len(step) == task.multiplier
+        assert len(step) == 1
 
 
 def test_rendered_job_is_valid(job: JobModel, mock_context: DevAmpelContext):
