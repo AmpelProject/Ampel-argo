@@ -334,11 +334,6 @@ def render_job(context: AmpelContext, job: JobModel):
             "volumes": [
                 {"name": "secrets", "secret": {"secretName": settings.ampel_secrets}}
             ],
-            "ttlStrategy": {"secondsAfterCompletion": 1200},
-            "podGC": {"strategy": "OnPodCompletion"},
-            "workflowMetadata": {
-                "labels": {"example": "true"},
-            },
             "imagePullSecrets": [{"name": n} for n in settings.image_pull_secrets],
         },
     }
