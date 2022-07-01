@@ -132,28 +132,31 @@ def get_template_for_task(
         "name": task.title,
         "inputs": {
             "parameters": [
-                {"name": "task"},
                 {"name": "name"},
             ]
             + to_argo(task.inputs.parameters),
             "artifacts": [
                 {
-                    "name": "task",
+                    "name": "__task",
                     "path": "/config/task.yml",
-                    "raw": {"data": "{{inputs.parameters.task}}"},
                 },
                 {
-                    "name": "channel",
+                    "name": "__channel",
                     "path": "/config/channel.yml",
                     "raw": {"data": compact_json(job.channel)},
                 },
                 {
-                    "name": "alias",
+                    "name": "__alias",
                     "path": "/config/alias.yml",
                     "raw": {"data": compact_json(job.alias)},
                 },
             ]
-            + to_argo(task.inputs.artifacts),
+            # explicitly avoid setting source parameters for input artifacts
+            # to allow expressions to be expanded at step level
+            + [
+                {"name": artifact.name, "path": str(artifact.path)}
+                for artifact in task.inputs.artifacts
+            ],
         },
         "outputs": {"parameters": to_argo(task.outputs.parameters)},
         "metadata": {},
@@ -291,18 +294,22 @@ def render_job(context: AmpelContext, job: JobModel):
                 "name": task.title,
                 "template": task.title,
                 "arguments": {
-                    "parameters": [
-                        {"name": "name", "value": task.title},
+                    "parameters": [{"name": "name", "value": task.title}],
+                    "artifacts": [
                         {
-                            "name": "task",
-                            "value": compact_json(
-                                job.transform_expressions(
-                                    unit.dict(),
-                                    translate_expression,
+                            "name": "__task",
+                            "raw": {
+                                "data": compact_json(
+                                    job.transform_expressions(
+                                        unit.dict(),
+                                        translate_expression,
+                                    )
                                 )
-                            ),
+                            },
                         },
                     ]
+                    # drop path, as argo will ignore it in a step spec
+                    + [(d, d.pop("path"))[0] for d in to_argo(task.inputs.artifacts)],
                 },
             }
             if task.expand_with:
