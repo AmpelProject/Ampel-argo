@@ -158,7 +158,10 @@ def get_template_for_task(
                 for artifact in task.inputs.artifacts
             ],
         },
-        "outputs": to_argo(task.outputs),
+        "outputs": {
+            "parameters": to_argo(task.outputs.parameters),
+            "artifacts": to_argo(task.outputs.artifacts),
+        },
         "metadata": {},
         "container": {
             "name": "main",

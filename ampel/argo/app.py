@@ -66,6 +66,24 @@ def render_template(
     }
 
 
+@app.get("/jobs")
+async def list_jobs(user: User = Depends(get_user)):
+    """
+    Get all job templates
+    """
+    settings = api.KubernetesSettings.get()
+    async with api.api_client() as client:
+        (
+            response := await client.get(
+                f"api/v1/workflow-templates/{settings.namespace}",
+                params={"listOptions.labelSelector", "ampelproject.github.io/creator"},
+            )
+        ).raise_for_status()
+    if response.status_code >= status.HTTP_400_BAD_REQUEST:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+    return response.json()["items"]
+
+
 @app.post("/jobs")
 async def submit_job(template: dict = Depends(render_template)):
     """
@@ -119,7 +137,7 @@ async def update_job(name: str, template: dict = Depends(render_template)):
     return response.json()
 
 
-@app.pos("/jobs/{name}/rerender")
+@app.post("/jobs/{name}/rerender")
 async def rerender_job(name: str, user: User = Depends(get_user)):
     """
     Re-render an existing job template
