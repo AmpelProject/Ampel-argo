@@ -1,3 +1,5 @@
+import json
+
 from ampel.core.AmpelContext import AmpelContext
 from fastapi import Depends, FastAPI, status
 from fastapi.encoders import jsonable_encoder
@@ -58,7 +60,7 @@ def render_template(
                     "ampelproject.github.io/creator": user.name,
                 },
                 "annotations": {
-                    "ampelproject.github.io/job": compact_json(job.json()),
+                    "ampelproject.github.io/job": job.json(),
                 },
             },
             **template,
@@ -149,8 +151,13 @@ async def rerender_job(name: str, user: User = Depends(get_user)):
                 f"api/v1/workflow-templates/{settings.namespace}/{name}"
             )
         ).raise_for_status()
-        job = ArgoJobModel.parse_raw(
+        job_def = json.loads(
             response.json()["metadata"]["annotations"]["ampelproject.github.io/job"]
+        )
+        # work around legacy jobs where annotation was wrapped in an extra layer
+        # of json serialization
+        job = ArgoJobModel.parse_obj(
+            json.loads(job_def) if isinstance(job_def, str) else job_def
         )
         template = render_job(get_context(), job)
         template["metadata"] = response.json()["metadata"]
