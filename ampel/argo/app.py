@@ -159,8 +159,12 @@ async def rerender_job(name: str, user: User = Depends(get_user)):
         job = ArgoJobModel.parse_obj(
             json.loads(job_def) if isinstance(job_def, str) else job_def
         )
-        template = render_job(get_context(), job)
-        template["metadata"] = response.json()["metadata"]
+        template = {
+            "template": {
+                "metadata": response.json()["metadata"],
+                **render_job(get_context(), job)
+            }
+        }
         response = await client.put(
             f"api/v1/workflow-templates/{settings.namespace}/{name}",
             json=template,
