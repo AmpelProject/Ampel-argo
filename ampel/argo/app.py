@@ -104,6 +104,38 @@ async def update_job(name: str, template: dict = Depends(render_template)):
     """
     settings = api.KubernetesSettings.get()
     async with api.api_client() as client:
+        (
+            response := await client.get(
+                f"api/v1/workflow-templates/{settings.namespace}/{name}"
+            )
+        ).raise_for_status()
+        template["metadata"] = response.json()["metadata"]
+        response = await client.put(
+            f"api/v1/workflow-templates/{settings.namespace}/{name}",
+            json=template,
+        )
+    if response.status_code >= status.HTTP_400_BAD_REQUEST:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+    return response.json()
+
+
+@app.pos("/jobs/{name}/rerender")
+async def rerender_job(name: str, user: User = Depends(get_user)):
+    """
+    Re-render an existing job template
+    """
+    settings = api.KubernetesSettings.get()
+    async with api.api_client() as client:
+        (
+            response := await client.get(
+                f"api/v1/workflow-templates/{settings.namespace}/{name}"
+            )
+        ).raise_for_status()
+        job = ArgoJobModel.parse_raw(
+            response.json()["metadata"]["annotations"]["ampelproject.github.io/job"]
+        )
+        template = render_job(get_context(), job)
+        template["metadata"] = response.json()["metadata"]
         response = await client.put(
             f"api/v1/workflow-templates/{settings.namespace}/{name}",
             json=template,
