@@ -76,7 +76,7 @@ async def list_jobs(user: User = Depends(get_user)):
         (
             response := await client.get(
                 f"api/v1/workflow-templates/{settings.namespace}",
-                params={"listOptions.labelSelector", "ampelproject.github.io/creator"},
+                params={"listOptions.labelSelector": "ampelproject.github.io/creator"},
             )
         ).raise_for_status()
     if response.status_code >= status.HTTP_400_BAD_REQUEST:
