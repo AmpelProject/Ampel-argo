@@ -1,6 +1,6 @@
 import os
 import secrets
-from typing import Set
+from typing import Set, Optional
 
 import yaml
 from pydantic import (
@@ -34,6 +34,7 @@ class Settings(BaseSettings):
         env="JOB_ENV",
     )
     service_account: str = Field("argo-workflow", env="SERVICE_ACCOUNT")
+    pod_priority_class: Optional[str] = Field(None, env="POD_PRIORITY_CLASS")
 
     jwt_secret_key: str = Field(secrets.token_urlsafe(64), env="JWT_SECRET_KEY")
     jwt_algorithm: str = Field("HS256", env="JWT_ALGORITHM")

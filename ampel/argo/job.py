@@ -317,7 +317,7 @@ def render_job(context: AmpelContext, job: JobModel):
 
             steps.append([sub_step])
 
-    return {
+    workflow_template = {
         "spec": {
             "templates": templates
             + [
@@ -344,6 +344,11 @@ def render_job(context: AmpelContext, job: JobModel):
             "imagePullSecrets": [{"name": n} for n in settings.image_pull_secrets],
         },
     }
+
+    if settings.pod_priority_class:
+        workflow_template["spec"]["podPriorityClassName"] = settings.pod_priority_class
+
+    return workflow_template
 
 
 def entrypoint():
