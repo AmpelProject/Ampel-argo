@@ -1,5 +1,5 @@
 import ast
-from typing import Any, Callable
+from typing import Any
 from ampel.config.AmpelConfig import AmpelConfig
 from ampel.model.UnitModel import UnitModel
 from ampel.model.job.JobModel import (
@@ -16,16 +16,15 @@ from ampel.model.job.JobModel import (
 from ampel.core.AmpelContext import AmpelContext
 from ampel.abstract.AbsProcessorTemplate import AbsProcessorTemplate
 
-# avoid a circular import in UnitLoader._validate_unit_model
-from ampel.abstract.AbsProcessController import AbsProcessController
 
 from importlib import import_module
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
+from pydantic.error_wrappers import ErrorWrapper
 from contextlib import contextmanager
-from functools import singledispatch, partial
+from functools import singledispatch
 import json
 
-from typing import Literal, Union
+from typing import Union
 
 from .settings import settings
 
@@ -81,8 +80,8 @@ def to_argo(model) -> dict:
     return JobModel.transform_expressions(model.dict(), translate_expression)
 
 
-@to_argo.register
-def _(model: list) -> dict:
+@to_argo.register # type: ignore[arg-type]
+def _(model: list) -> list[dict]:
     return [to_argo(element) for element in model]
 
 
@@ -134,7 +133,7 @@ def get_template_for_task(
             "parameters": [
                 {"name": "name"},
             ]
-            + to_argo(task.inputs.parameters),
+            + to_argo(task.inputs.parameters), # type: ignore[operator]
             "artifacts": [
                 {
                     "name": "__task",
@@ -277,7 +276,14 @@ def render_job(context: AmpelContext, job: JobModel):
             task.override["raise_exc"] = True
 
             with ctx.loader.validate_unit_models():
-                unit: UnitModel = UnitModel(**get_unit_model(task))
+                try:
+                    unit: UnitModel = UnitModel(**get_unit_model(task))
+                except TypeError as exc:
+                    # extract and raise inner ValidationError
+                    raise exc.args[0] from None
+                except ValueError as exc:
+                    # wrap ValueError from missing unit
+                    raise ValidationError([ErrorWrapper(exc, "unit")], model=UnitModel) from None
 
             if not "AbsEventUnit" in ctx.config._config["unit"][task.unit]["base"]:
                 raise ValidationError(
