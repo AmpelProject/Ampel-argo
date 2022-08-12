@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ampel-argo"
-version = "0.1.0-alpha.17"
+version = "0.2.0-alpha.0"
 description = ""
 authors = ["Jakob van Santen <jvansanten@gmail.com>"]
 packages = [
@@ -11,8 +11,8 @@ packages = [
 ampel-argo-render = 'ampel.argo.job:entrypoint'
 
 [tool.poetry.dependencies]
-python = "^3.9"
-ampel-core = ">=0.8.2-alpha.13,<0.8.3"
+python = "^3.10"
+ampel-core = ">=0.8.3-alpha.21,<0.8.4"
 fastapi = "^0.75.0"
 uvicorn = "^0.17.6"
 httpx = "^0.22.0"
