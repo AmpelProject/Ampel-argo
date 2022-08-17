@@ -2,17 +2,16 @@ import ast
 from typing import Any
 from ampel.config.AmpelConfig import AmpelConfig
 from ampel.model.UnitModel import UnitModel
+from ampel.model.job.utils import transform_expressions
 from ampel.model.job.JobModel import (
-    InputArtifact,
-    InputParameter,
     JobModel,
     TaskUnitModel,
     TemplateUnitModel,
-    OutputParameter,
-    InputArtifactHttpSource,
-    ExpandWithItems,
-    ExpandWithSequence,
 )
+from ampel.model.job.InputArtifact import InputArtifact
+from ampel.model.job.OutputParameter import OutputParameter
+from ampel.model.job.ExpandWithItems import ExpandWithItems
+from ampel.model.job.ExpandWithSequence import ExpandWithSequence
 from ampel.core.AmpelContext import AmpelContext
 from ampel.abstract.AbsProcessorTemplate import AbsProcessorTemplate
 
@@ -77,7 +76,7 @@ def translate_expression(expression: str) -> str:
 
 @singledispatch
 def to_argo(model) -> dict:
-    return JobModel.transform_expressions(model.dict(), translate_expression)
+    return transform_expressions(model.dict(), translate_expression)
 
 
 @to_argo.register # type: ignore[arg-type]
@@ -87,7 +86,7 @@ def _(model: list) -> list[dict]:
 
 @to_argo.register
 def _(model: OutputParameter) -> dict:
-    return JobModel.transform_expressions(
+    return transform_expressions(
         {
             "name": model.name,
             "valueFrom": {
@@ -111,7 +110,7 @@ def _(model: ExpandWithSequence):
 
 @to_argo.register
 def _(model: InputArtifact) -> dict:
-    return JobModel.transform_expressions(
+    return transform_expressions(
         (
             model.dict()
             | {
@@ -309,7 +308,7 @@ def render_job(context: AmpelContext, job: JobModel):
                             "name": "__task",
                             "raw": {
                                 "data": compact_json(
-                                    job.transform_expressions(
+                                    transform_expressions(
                                         unit.dict(),
                                         translate_expression,
                                     )

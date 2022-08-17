@@ -5,6 +5,7 @@ import subprocess
 import re
 
 from ampel.model.job.JobModel import JobModel
+from ampel.model.job.utils import transform_expressions
 from ampel.dev.DevAmpelContext import DevAmpelContext
 
 from pydantic import ValidationError
@@ -68,7 +69,7 @@ def test_transform_expressions():
         == "workflow.parameters.job"
     )
 
-    assert JobModel.transform_expressions(
+    assert transform_expressions(
         {"foo": {"bar": ["baz", "flim{{ job.parameters.job }}bim"]}},
         transformation=translate_expression,
     ) == {"foo": {"bar": ["baz", "flim{{ workflow.parameters.job }}bim"]}}
