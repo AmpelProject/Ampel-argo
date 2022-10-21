@@ -141,7 +141,7 @@ def get_template_for_task(
                 {
                     "name": "__channel",
                     "path": "/config/channel.yml",
-                    "raw": {"data": compact_json(job.channel)},
+                    "raw": {"data": compact_json([c.dict() for c in job.channel])},
                 },
                 {
                     "name": "__alias",
@@ -234,7 +234,7 @@ def job_context(ctx: AmpelContext, job: JobModel):
         config = AmpelConfig(old_config.get(), freeze=False)
         config_dict = config._config
         for c in job.channel:
-            dict.__setitem__(config_dict["channel"], str(c["channel"]), c)
+            dict.__setitem__(config_dict["channel"], str(c.channel), c.dict())
 
         for k, v in job.alias.items():
             if "alias" not in config_dict:
