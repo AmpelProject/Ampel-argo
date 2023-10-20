@@ -1,6 +1,7 @@
 import ast
 from typing import Any
 from ampel.config.AmpelConfig import AmpelConfig
+from ampel.log.AmpelLogger import AmpelLogger
 from ampel.model.UnitModel import UnitModel
 from ampel.model.job.utils import transform_expressions
 from ampel.model.job.JobModel import (
@@ -217,7 +218,7 @@ def render_task_template(ctx: AmpelContext, model: TemplateUnitModel) -> TaskUni
 
     return TaskUnitModel(
         **(
-            tpl.get_model(ctx.config._config, model.dict()).dict()
+            tpl.get_model(ctx.config._config, AmpelLogger.get_logger()).dict()
             | {
                 "title": model.title,
                 "expand_with": model.expand_with,
