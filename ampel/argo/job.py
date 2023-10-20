@@ -1,5 +1,6 @@
 import ast
 from typing import Any
+from ampel.argo.models import ArgoJobModel
 from ampel.config.AmpelConfig import AmpelConfig
 from ampel.log.AmpelLogger import AmpelLogger
 from ampel.model.UnitModel import UnitModel
@@ -256,7 +257,7 @@ def job_context(ctx: AmpelContext, job: JobModel):
 compact_json = json.JSONEncoder(separators=(",", ":")).encode
 
 
-def render_job(context: AmpelContext, job: JobModel):
+def render_job(context: AmpelContext, job: ArgoJobModel):
     """Render Ampel job into an Argo workflow template spec"""
 
     steps = []
@@ -295,7 +296,7 @@ def render_job(context: AmpelContext, job: JobModel):
                 get_template_for_task(
                     job,
                     task,
-                    image=settings.ampel_image,
+                    image=job.image,
                 )
             )
 

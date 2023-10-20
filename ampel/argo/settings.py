@@ -12,8 +12,11 @@ from pydantic import (
 class Settings(BaseSettings):
     root_path: str = Field("", env="ROOT_PATH")
     ampel_config: str = Field("", env="AMPEL_CONFIG")
+    container_registry: str = Field(
+        "gitlab.desy.de:5555/jakob.van.santen", env="CONTAINER_REGISTRY"
+    )
     ampel_image: str = Field(
-        "gitlab.desy.de:5555/jakob.van.santen/docker-ampel:v0.8", env="AMPEL_IMAGE"
+        "docker-ampel:v0.8", env="AMPEL_IMAGE"
     )
     ampel_secrets: str = Field("ampel-secrets", env="AMPEL_SECRETS")
     image_pull_secrets: list[str] = Field(

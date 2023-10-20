@@ -9,6 +9,7 @@ import os
 from ampel.argo import api
 
 from ampel.argo.models import ArgoJobModel
+from ampel.argo.settings import settings
 
 
 @pytest.fixture
@@ -71,6 +72,22 @@ async def test_lint(mock_client: httpx.AsyncClient, job: ArgoJobModel):
 async def test_lint_bad(mock_client: httpx.AsyncClient, bad_job: ArgoJobModel):
     response = await mock_client.post("/jobs/lint", json=bad_job.dict())
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.parametrize(
+    "image, status",
+    [
+        ("ampel:latest", status.HTTP_200_OK),
+        (f"{settings.container_registry}/ampel", status.HTTP_200_OK),
+        ("malicio.us/ampel:vbad", status.HTTP_422_UNPROCESSABLE_ENTITY),
+    ],
+)
+@pytest.mark.asyncio
+async def test_validate_image(mock_client: httpx.AsyncClient, image: str, status: int):
+    response = await mock_client.post(
+        "/jobs/lint", json={"name": "foo", "task": [], "image": image}
+    )
+    assert response.status_code == status
 
 
 @pytest.mark.asyncio

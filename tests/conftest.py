@@ -2,7 +2,7 @@ import pytest
 import pathlib
 import yaml
 
-from ampel.model.job.JobModel import JobModel
+from ampel.argo.models import ArgoJobModel
 
 from ampel.dev.DevAmpelContext import DevAmpelContext
 from ampel.secret.AmpelVault import AmpelVault
@@ -34,7 +34,7 @@ def mock_context(test_data: pathlib.Path):
 )
 def job(request, test_data: pathlib.Path):
     with (test_data / request.param).open() as f:
-        return JobModel(**yaml.safe_load(f))
+        return ArgoJobModel(**yaml.safe_load(f))
 
 
 @pytest.fixture(
@@ -42,4 +42,4 @@ def job(request, test_data: pathlib.Path):
 )
 def bad_job(request, test_data: pathlib.Path):
     with (test_data / request.param).open() as f:
-        return JobModel(**yaml.safe_load(f))
+        return ArgoJobModel(**yaml.safe_load(f))
