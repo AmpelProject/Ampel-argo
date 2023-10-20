@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ampel-argo"
-version = "0.2.0a2"
+version = "0.3.0a0"
 description = ""
 authors = ["Jakob van Santen <jvansanten@gmail.com>"]
 packages = [
