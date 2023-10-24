@@ -21,7 +21,7 @@ from ampel.abstract.AbsProcessorTemplate import AbsProcessorTemplate
 from importlib import import_module
 from pydantic import ValidationError
 from pydantic.error_wrappers import ErrorWrapper
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from functools import singledispatch
 import json
 
@@ -257,10 +257,10 @@ def job_context(ctx: AmpelContext, job: JobModel):
 compact_json = json.JSONEncoder(separators=(",", ":")).encode
 
 
-def render_job(context: AmpelContext, job: ArgoJobModel):
+def render_job(context: AmpelContext, job: ArgoJobModel, validate: bool = True):
     """Render Ampel job into an Argo workflow template spec"""
 
-    steps = []
+    steps: list[list[dict]] = []
     templates = []
 
     with job_context(context, job) as ctx:
@@ -276,7 +276,7 @@ def render_job(context: AmpelContext, job: ArgoJobModel):
                 task.override = {}
             task.override["raise_exc"] = True
 
-            with ctx.loader.validate_unit_models():
+            with ctx.loader.validate_unit_models() if validate else nullcontext():
                 try:
                     unit: UnitModel = UnitModel(**get_unit_model(task))
                 except TypeError as exc:
@@ -284,7 +284,9 @@ def render_job(context: AmpelContext, job: ArgoJobModel):
                     raise exc.args[0] from None
                 except ValueError as exc:
                     # wrap ValueError from missing unit
-                    raise ValidationError([ErrorWrapper(exc, "unit")], model=UnitModel) from None
+                    raise ValidationError(
+                        [ErrorWrapper(exc, "unit")], model=UnitModel
+                    ) from None
 
             if not "AbsEventUnit" in ctx.config._config["unit"][task.unit]["base"]:
                 raise ValidationError(

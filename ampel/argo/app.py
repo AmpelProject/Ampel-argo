@@ -33,13 +33,12 @@ def get_context():
     )
 
 
-@app.post("/jobs/lint")
-def lint_job(job: ArgoJobModel) -> dict:
+def validate_job(job: ArgoJobModel, validate: bool = True) -> dict:
     """
     Check a job template for errors
     """
     try:
-        return render_job(get_context(), job)
+        return render_job(get_context(), job, validate=validate)
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -47,9 +46,14 @@ def lint_job(job: ArgoJobModel) -> dict:
         )
 
 
+@app.post("/jobs/lint")
+def lint_job(job: ArgoJobModel) -> dict:
+    return validate_job(job)
+
+
 def render_template(
     job: ArgoJobModel,
-    template: dict = Depends(lint_job),
+    template: dict = Depends(validate_job),
     user: User = Depends(get_user),
 ) -> dict:
     return {
@@ -162,7 +166,7 @@ async def rerender_job(name: str, user: User = Depends(get_user)):
         template = {
             "template": {
                 "metadata": response.json()["metadata"],
-                **render_job(get_context(), job)
+                **render_job(get_context(), job),
             }
         }
         response = await client.put(
