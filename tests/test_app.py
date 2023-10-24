@@ -4,6 +4,7 @@ from pytest_mock import MockerFixture
 from starlette import status
 
 import pytest
+import pytest_asyncio
 import os
 
 from ampel.argo import api
@@ -12,7 +13,7 @@ from ampel.argo.models import ArgoJobModel
 from ampel.argo.settings import settings
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_client(mock_context, mocker: MockerFixture):
     from ampel.argo import app, auth
 
