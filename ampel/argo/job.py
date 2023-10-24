@@ -4,6 +4,7 @@ from ampel.argo.models import ArgoJobModel
 from ampel.config.AmpelConfig import AmpelConfig
 from ampel.log.AmpelLogger import AmpelLogger
 from ampel.model.UnitModel import UnitModel
+from ampel.model.job.OutputArtifact import OutputArtifact
 from ampel.model.job.utils import transform_expressions
 from ampel.model.job.JobModel import (
     JobModel,
@@ -81,7 +82,7 @@ def to_argo(model) -> dict:
     return transform_expressions(model.dict(), translate_expression)
 
 
-@to_argo.register # type: ignore[arg-type]
+@to_argo.register  # type: ignore[arg-type]
 def _(model: list) -> list[dict]:
     return [to_argo(element) for element in model]
 
@@ -110,8 +111,9 @@ def _(model: ExpandWithSequence):
     return {"withSequence": model.sequence.dict()}
 
 
-@to_argo.register
-def _(model: InputArtifact) -> dict:
+@to_argo.register(InputArtifact)
+@to_argo.register(OutputArtifact)
+def _(model: Union[InputArtifact, OutputArtifact]) -> dict:
     return transform_expressions(
         (
             model.dict()
@@ -134,11 +136,15 @@ def get_template_for_task(
             "parameters": [
                 {"name": "name"},
             ]
-            + to_argo(task.inputs.parameters), # type: ignore[operator]
+            + to_argo(task.inputs.parameters),  # type: ignore[operator]
             "artifacts": [
                 {
                     "name": "__task",
                     "path": "/config/task.yml",
+                },
+                {
+                    "name": "__resources_in",
+                    "path": "/config/resources.json",
                 },
                 {
                     "name": "__channel",
@@ -160,29 +166,30 @@ def get_template_for_task(
         },
         "outputs": {
             "parameters": to_argo(task.outputs.parameters),
-            "artifacts": to_argo(task.outputs.artifacts),
+            "artifacts": to_argo(
+                task.outputs.artifacts
+                + [
+                    OutputArtifact(
+                        name="__resources_out", path="/config/resources.json"
+                    )
+                ]
+            ),
         },
         "metadata": {},
         "container": {
             "name": "main",
             "image": image,
-            "command": [
-                "ampel",
-                "process",
-                "--config",
-                "/opt/env/etc/ampel.yml",
-                "--secrets",
-                "/config/secrets/secrets.yaml",
-                "--channel",
-                "/config/channel.yml",
-                "--alias",
-                "/config/alias.yml",
-                "--db",
-                "{{workflow.parameters.db}}",
-                "--schema",
-                "/config/task.yml",
-                "--name",
-                "{{inputs.parameters.name}}",
+            "command": ["sh", "-c"],
+            "args": [
+                'ampel process --config "$AMPEL_CONFIG" '
+                "--secrets /config/secrets/secrets.yaml "
+                "--channel /config/channel.yml "
+                "--alias /config/alias.yml "
+                "--schema /config/task.yml "
+                "--resources-in /config/resources.json "
+                "--resources-out /config/resources.json "
+                "--db '{{workflow.parameters.db}}' "
+                "--name '{{inputs.parameters.name}}' "
             ],
             "env": settings.job_env,
             "resources": {},
@@ -319,6 +326,18 @@ def render_job(context: AmpelContext, job: ArgoJobModel, validate: bool = True):
                                 )
                             },
                         },
+                        {
+                            "name": "__resources_in",
+                        }
+                        | (
+                            {"raw": {"data": "{}"}}
+                            if num == 0
+                            else {
+                                "from": "{{steps."
+                                + steps[-1][0]["name"]
+                                + ".outputs.artifacts.__resources_out}}"
+                            }
+                        ),
                     ]
                     # drop path, as argo will ignore it in a step spec
                     + [(d, d.pop("path"))[0] for d in to_argo(task.inputs.artifacts)],
